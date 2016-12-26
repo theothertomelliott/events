@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+// FanOut forwards everything sent to an input channel to a set of listener channels
 type FanOut struct {
 	lag         int
 	outChannels map[<-chan interface{}]chan interface{}
@@ -12,6 +13,8 @@ type FanOut struct {
 	closed      bool
 }
 
+// NewFanOut creates an instance of FanOut which accepts input on the provided channel,
+// with listener channels with a buffer size defined by lag.
 func NewFanOut(inChannel <-chan interface{}, lag int) *FanOut {
 	fanOut := &FanOut{
 		lag:         lag,
@@ -36,6 +39,7 @@ func NewFanOut(inChannel <-chan interface{}, lag int) *FanOut {
 	return fanOut
 }
 
+// Listen creates a channel to listen for output from this instance of FanOut
 func (f *FanOut) Listen() (<-chan interface{}, error) {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
@@ -49,6 +53,8 @@ func (f *FanOut) Listen() (<-chan interface{}, error) {
 	return newChan, nil
 }
 
+// StopListening closes a listener channel previously created by Listen. If this channel
+// has already been closed or was not created by Listen, an error will be returned.
 func (f *FanOut) StopListening(c <-chan interface{}) error {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
