@@ -7,15 +7,16 @@ import (
 
 type FanOut struct {
 	lag         int
-	outChannels []chan interface{}
+	outChannels map[<-chan interface{}]chan interface{}
 	mutex       *sync.Mutex
 	closed      bool
 }
 
 func NewFanOut(inChannel <-chan interface{}, lag int) *FanOut {
 	fanOut := &FanOut{
-		lag:   lag,
-		mutex: &sync.Mutex{},
+		lag:         lag,
+		outChannels: make(map[<-chan interface{}]chan interface{}),
+		mutex:       &sync.Mutex{},
 	}
 	go func() {
 		for value := range inChannel {
@@ -44,8 +45,7 @@ func (f *FanOut) Listen() (<-chan interface{}, error) {
 	}
 
 	newChan := make(chan interface{}, f.lag)
-	f.outChannels = append(f.outChannels, newChan)
-
+	f.outChannels[newChan] = newChan
 	return newChan, nil
 }
 
@@ -57,15 +57,9 @@ func (f *FanOut) StopListening(c <-chan interface{}) error {
 		return errors.New("input channel already closed")
 	}
 
-	for i, co := range f.outChannels {
-		if co == c {
-			if i < len(f.outChannels)-1 {
-				f.outChannels[i] = f.outChannels[len(f.outChannels)-1]
-			}
-			f.outChannels = f.outChannels[:len(f.outChannels)-1]
-			close(co)
-			return nil
-		}
+	if _, ok := f.outChannels[c]; ok {
+		delete(f.outChannels, c)
+		return nil
 	}
 
 	return errors.New("channel not found")
